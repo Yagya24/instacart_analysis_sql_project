@@ -18,6 +18,7 @@ Disclaimer: I do not own any rights on the data. Used here for educational purpo
 - `order_products__prior.csv` – product info for each past order
 - `products.csv` – product names + category info
 - `aisles.csv` and `departments.csv` – product hierarchy metadata
+  The original data can be accessed from the link above and the sampled data that was originally used is given in the repository itself.
 
 ---
 
@@ -60,4 +61,4 @@ Disclaimer: I do not own any rights on the data. Used here for educational purpo
 
 ## 📬 Contact
 ag.yash1920@gmail.com
-Made by [Yash Agarwal] — for project/portfolio use
+Made by Yash Agarwal - for project/portfolio use
