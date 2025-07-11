@@ -1,0 +1,178 @@
+-- 📁 Instacart SQL Project (MySQL Based)
+
+-- STEP 1: Create Tables
+CREATE TABLE orders (
+    order_id INT,
+    user_id INT,
+    eval_set VARCHAR(20),
+    order_number INT,
+    order_dow INT,
+    order_hour_of_day INT,
+    days_since_prior_order FLOAT
+);
+
+CREATE TABLE order_products_prior (
+    order_id INT,
+    product_id INT,
+    add_to_cart_order INT,
+    reordered INT
+);
+
+CREATE TABLE products (
+    product_id INT,
+    product_name VARCHAR(255),
+    aisle_id INT,
+    department_id INT
+);
+
+CREATE TABLE aisles (
+    aisle_id INT,
+    aisle VARCHAR(255)
+);
+
+CREATE TABLE departments (
+    department_id INT,
+    department VARCHAR(255)
+);
+
+-- STEP 2: Load Data from CSVs (Update file paths as needed) This step is optional, though quicker than the manual importing using Table Wizard Import Data functionality.
+LOAD DATA INFILE 'C:/path/to/orders.csv'
+INTO TABLE orders
+FIELDS TERMINATED BY ',' 
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(order_id, user_id, eval_set, order_number, order_dow, order_hour_of_day, days_since_prior_order);
+
+LOAD DATA INFILE 'C:/path/to/order_products__prior.csv'
+INTO TABLE order_products_prior
+FIELDS TERMINATED BY ',' 
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(order_id, product_id, add_to_cart_order, reordered);
+
+LOAD DATA INFILE 'C:/path/to/products.csv'
+INTO TABLE products
+FIELDS TERMINATED BY ',' 
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(product_id, product_name, aisle_id, department_id);
+
+LOAD DATA INFILE 'C:/path/to/aisles.csv'
+INTO TABLE aisles
+FIELDS TERMINATED BY ',' 
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(aisle_id, aisle);
+
+LOAD DATA INFILE 'C:/path/to/departments.csv'
+INTO TABLE departments
+FIELDS TERMINATED BY ',' 
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(department_id, department);
+
+-- STEP 3: Sample 2,000 Users (or based on your user count)
+CREATE TABLE sample_users AS
+SELECT DISTINCT user_id
+FROM orders
+ORDER BY user_id
+LIMIT 2000;
+
+-- STEP 4: Extract Orders for Sampled Users
+CREATE TABLE sample_orders AS
+SELECT *
+FROM orders
+WHERE user_id IN (SELECT user_id FROM sample_users);
+
+-- STEP 5: Extract Order-Product Mappings
+CREATE TABLE sample_order_products_prior AS
+SELECT opp.*
+FROM order_products_prior opp
+JOIN sample_orders o ON opp.order_id = o.order_id;
+
+-- STEP 6: Extract Associated Products
+CREATE TABLE sample_products AS
+SELECT DISTINCT p.*
+FROM products p
+JOIN sample_order_products_prior opp ON p.product_id = opp.product_id;
+
+-- STEP 7: Extract Associated Aisles and Departments
+CREATE TABLE sample_aisles AS
+SELECT DISTINCT a.*
+FROM aisles a
+JOIN sample_products p ON a.aisle_id = p.aisle_id;
+
+CREATE TABLE sample_departments AS
+SELECT DISTINCT d.*
+FROM departments d
+JOIN sample_products p ON d.department_id = p.department_id;
+
+-- STEP 8: Performance Optimization (Indexing)
+CREATE INDEX idx_user_id ON sample_orders(user_id);
+CREATE INDEX idx_order_id ON sample_order_products_prior(order_id);
+CREATE INDEX idx_product_id ON sample_products(product_id);
+
+-- STEP 9: Core SQL Queries
+
+-- A. Total Users
+SELECT COUNT(DISTINCT user_id) AS total_users FROM sample_orders;
+
+-- B. Reordered Users
+SELECT COUNT(DISTINCT user_id) AS reordered_users
+FROM sample_orders o
+JOIN sample_order_products_prior opp ON o.order_id = opp.order_id
+WHERE opp.reordered = 1;
+
+-- C. Weekly Retention Users (Reordered within 7 Days)
+SELECT user_id, COUNT(*) AS orders_in_week_1
+FROM sample_orders
+WHERE days_since_prior_order <= 7 AND order_number > 1
+GROUP BY user_id;
+
+-- D. Top Reordered Products
+SELECT p.product_name, COUNT(*) AS reorder_count
+FROM sample_order_products_prior opp
+JOIN sample_products p ON opp.product_id = p.product_id
+WHERE opp.reordered = 1
+GROUP BY p.product_name
+ORDER BY reorder_count DESC
+LIMIT 10;
+
+-- E. Most Loyal Users (Most Orders)
+SELECT user_id, MAX(order_number) AS total_orders
+FROM sample_orders
+GROUP BY user_id
+ORDER BY total_orders DESC
+LIMIT 10;
+
+-- F. Top Departments by Reorders
+SELECT d.department, COUNT(*) AS reorder_count
+FROM sample_order_products_prior opp
+JOIN sample_products p ON opp.product_id = p.product_id
+JOIN sample_departments d ON p.department_id = d.department_id
+WHERE opp.reordered = 1
+GROUP BY d.department
+ORDER BY reorder_count DESC
+LIMIT 10;
+
+-- Reorder Rate (%)
+SELECT 
+    (SUM(CASE WHEN reordered = 1 THEN 1 ELSE 0 END) / COUNT(*)) * 100 AS reorder_percentage
+FROM sample_order_products_prior;
+
+-- Top Aisles by Reorder
+SELECT a.aisle, COUNT(*) AS reorder_count
+FROM sample_order_products_prior opp
+JOIN sample_products p ON opp.product_id = p.product_id
+JOIN sample_aisles a ON p.aisle_id = a.aisle_id
+WHERE opp.reordered = 1
+GROUP BY a.aisle
+ORDER BY reorder_count DESC
+LIMIT 10;
+
+-- END OF PROJECT SCRIPT
